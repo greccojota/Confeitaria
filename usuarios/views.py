@@ -16,18 +16,26 @@ def cadastro(request):
         senha = request.POST['password']
         confirmacao_senha = request.POST['password2']
 
-        if not nome.strip():
+        if valida_campo(nome):
+            messages.error(request, 'Por favor, preencha o Nome de Usuário.')
             return redirect('cadastro')
-        if not email.strip():
+        if valida_campo(email):
+            messages.error(request, 'Por favor, preencha o Email de Usuário.')
             return redirect('cadastro')
-        if senha != confirmacao_senha:
+        if valida_senha(senha, confirmacao_senha):
+            messages.error(request, 'ATENÇÃO: Senhas diferentes.')
             return redirect('cadastro')
 
         if User.objects.filter(email = email).exists():
-            print('usuario ja cadastrado!')
+            messages.warning(request, 'ATENÇÃO: Email já cadastrado')
+            return redirect('cadastro')
+        if User.objects.filter(username = nome).exists():
+            messages.warning(request, 'ATENÇÃO: Nome já cadastrado')
             return redirect('cadastro')
 
-        User.objects.create_user(username = nome, email = email, password = senha)
+        usuario = User.objects.create_user(username = nome, email = email, password = senha)
+        usuario.save()
+        messages.success(request, 'Usuário cadastrado com sucesso.')
         return redirect('login')
 
     else:
@@ -39,17 +47,21 @@ def submit_login(request):
         email = request.POST['email']
         senha = request.POST['senha']
 
-        if User.objects.filter(email = email).exists():
-            nome = User.objects.filter(email = email).values_list('username', flat=True).get() #buscando o user do email para autenticar o login
+        if valida_campo(email) or valida_campo(senha):
+            messages.error(request, 'ATENÇÃO: Campos vazios.')
+        else:
+            if User.objects.filter(email = email).exists():
+                nome = User.objects.filter(email = email).values_list('username', flat=True).get() #buscando o user do email para autenticar o login
 
-            usuario = authenticate(username = nome, password = senha)
+                usuario = authenticate(username = nome, password = senha)
 
-            if usuario is not None:
-                login(request, usuario)
-                return redirect('dashboard')
+                if usuario is not None:
+                    login(request, usuario)
+                    return redirect('dashboard')
+                else:
+                    messages.error(request, 'ATENÇÃO: Senha Inválida.')
             else:
-                print('Usuário ou Senha Inválido.')
-                #messages.error(request, 'Usuário ou Senha Inválido.')
+                messages.error(request, 'ATENÇÃO: Email Inválido.')
 
     return render(request, 'usuarios/login.html')
 
@@ -60,7 +72,7 @@ def submit_logout(request):
 def dashboard(request):
     if request.user.is_authenticated:
         id = request.user.id
-        receitas = Receita.objects.order_by('-date_receita').filter(pessoa=id)
+        receitas = Receita.objects.order_by('-data_receita').filter(pessoa=id)
 
         dados = { 
             'receitas' : receitas
@@ -85,8 +97,14 @@ def submit_receita(request):
         #   Receita.objects.filter(nome = nome, ingredientes = ingredientes, modo_preparo = modo_preparo, tempo_preparo = tempo_preparo, rendimento = rendimento, categoria = categoria, foto_receita = foto_receita)
         
         #else:
-        Receita.objects.create(pessoa = usuario, nome = nome, ingredientes = ingredientes, modo_preparo = modo_preparo, tempo_preparo = tempo_preparo, rendimento = rendimento, categoria = categoria, foto_receita = foto_receita)
-        
+        receita = Receita.objects.create(pessoa = usuario, nome = nome, ingredientes = ingredientes, modo_preparo = modo_preparo, tempo_preparo = tempo_preparo, rendimento = rendimento, categoria = categoria, foto_receita = foto_receita)
+        receita.save()
         return redirect('dashboard')
     else:
         return render(request, 'usuarios/cria_receita.html')
+
+def valida_campo(campo):
+    return not campo.strip()
+
+def valida_senha(x, y):
+    return x != y
